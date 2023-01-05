@@ -1,0 +1,50 @@
+if length(data_1) ~= length(data_2)
+  lmin = min(length(data_1), length(data_2));
+  data_1 = data_1(1:lmin);
+  data_2 = data_2(1:lmin);
+end
+fs = 10; %sampling rate
+
+beta = 9;
+gamma = 3;
+time_bandwidth_power = beta*gamma; %partically correct relationship
+K = 6; %6   number of orders of orthogonal wavelets (k=1 --> 0 to K-1) 
+D =4; %Wavelet density
+
+f_low_rad = 2*pi*0.016;%unit is *radian* per unit sample point;
+f_high_rad = 2*pi*5; %unit is *radian* per unit sample point;
+
+
+ %f_space=morsespace(gamma, beta, f_high_rad, f_low_rad, D);
+ f_space=morsespace(gamma, beta, length(data_1));
+ 
+ periodlength= 1./(f_space.*10/(2*pi));
+ FOI = find(periodlength >= 2.02 & periodlength <= 12.8);
+ 
+ 
+ 
+ [psi,psif]=morsewave(length(data_1),K, gamma,beta,f_space);
+ wave_x = wavetrans(data_1,{K,gamma,beta,f_space},'nodetrend'); % 'nodetrend'
+ wave_y = wavetrans(data_2,{K,gamma,beta,f_space},'nodetrend'); %, 'bandpass'
+ 
+%%%COI has to be adjusted
+% coiS=fourier_factor/sigmaT; % see [1, p.37]
+% coi = coiS*dt*[1E-5,1:((lx+1)/2-1),fliplr((1:(lx/2-1))),1E-5]; 
+
+# here the smoothing has to be integrated
+Wxy=abs(sum(wave_x .* conj(wave_y),3));
+Wxxyy = sum(abs(wave_x).^2,eee).*sum(abs(wave_y).^2,eee)
+WCO_sq = (Wxy./ sqrt(Wxxyy)); %attention not powered
+WCO = ((Wxy.^2)./ sqrt(Wxxyy).^2);
+
+figure;
+wavespecplot([1:length(data_1)],[data_1, data_2],periodlength, WCO, 1);
+
+
+%inverse test with matlab implementation
+
+[wt_morlet]= cwt(data_1, 'amor');
+[iwt_morlet]= icwt(wt_morlet, 'amor');
+[wt_morse]= cwt(data_1, 'morse', 'WaveletParameters', [gamma time_bandwidth_power]);
+[iwt_morse]= icwt(wt_morse, 'morse', 'WaveletParameters', [gamma time_bandwidth_power]);
+compair= [sum((data_1-iwt_morse').^2/length(data_1)) sum((data_1-iwt_morlet').^2/length(data_1))];
